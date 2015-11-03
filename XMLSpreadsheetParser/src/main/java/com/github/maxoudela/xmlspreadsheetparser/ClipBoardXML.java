@@ -24,7 +24,10 @@ package com.github.maxoudela.xmlspreadsheetparser;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date; 
+import java.util.BitSet;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -89,7 +92,7 @@ public abstract class ClipBoardXML {
      * We will flag to true each cell we have considered. All others will be
      * deleted.
      */
-    private boolean[][] cellsUsed;
+    private Map<Integer, BitSet> cellsUsed;
 
     /**
      * Construct your object by giving the {@link Document} that parsed the XML
@@ -149,13 +152,28 @@ public abstract class ClipBoardXML {
             return;
         }
         int row = 0;
-        for (boolean[] bitSet : cellsUsed) {
+        int consideredRow;
+        int consideredColumn;
+        while (row < gridRowCount && row < selectionRowCount) {
             int column = 0;
-            for (boolean value : bitSet) {
-                if (!value && row + baseRow < gridRowCount && column + baseColumn < gridColCount) {
-                    eraseValue(row + baseRow, column + baseColumn);
+            consideredRow = row + baseRow;
+            if (cellsUsed.containsKey(row)) {
+                BitSet bitSet = cellsUsed.get(row);
+                while (column < gridColCount && column < selectionColumnCount) {
+                    consideredColumn = column + baseColumn;
+                    if (!bitSet.get(column) && consideredRow < gridRowCount && consideredColumn < gridColCount) {
+                        eraseValue(consideredRow, consideredColumn);
+                    }
+                    ++column;
                 }
-                ++column;
+            } else {
+                while (column < gridColCount && column < selectionColumnCount) {
+                    consideredColumn = column + baseColumn;
+                    if (consideredRow < gridRowCount && consideredColumn < gridColCount) {
+                        eraseValue(consideredRow, consideredColumn);
+                    }
+                    ++column;
+                }
             }
             ++row;
         }
@@ -165,10 +183,10 @@ public abstract class ClipBoardXML {
         if (cellsUsed == null) {
             return;
         }
-        if (cellsUsed[row] == null) {
-            cellsUsed[row] = new boolean[selectionColumnCount];
+        if (!cellsUsed.containsKey(row)) {
+            cellsUsed.put(row, new BitSet());
         }
-        cellsUsed[row][column] = true;
+        cellsUsed.get(row).set(column);
     }
 
     private void handleRow(Element rowEl) throws ParseException {
@@ -201,8 +219,8 @@ public abstract class ClipBoardXML {
                 }
 
                 handleCell(currentRow, currentColumn, cellEl);
-                set(newRow - 1, newCol - 1);
                 currentColumn++;
+                handleSpan(cellEl);
             }
 
             oldCol = newCol;
@@ -244,7 +262,7 @@ public abstract class ClipBoardXML {
             }
             //Initialize array if both values are respected.
             if (selectionRowCount != 0 && selectionColumnCount != 0) {
-                cellsUsed = new boolean[selectionRowCount][selectionColumnCount];
+                cellsUsed = new HashMap<>();
             }
         }
     }
@@ -265,6 +283,8 @@ public abstract class ClipBoardXML {
     private void handleCell(int currentRow, int currentColumn, Element cellEl) throws ParseException {
         NodeList datas = cellEl.getElementsByTagName(DATA_TAG);
         if (datas.getLength() == 1 && datas.item(0).getNodeType() == Node.ELEMENT_NODE) {
+            //We must only set the cell if we have a valid data. We can have a cell with only style and no data.
+            set(newRow - 1, newCol - 1);
             Element data = (Element) datas.item(0);
             String cellType = data.getAttribute(TYPE_TAG);
             Object object;
