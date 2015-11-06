@@ -13,3 +13,6 @@ Also overrides two methods in order to deal with the values extracted from Excel
 
 3) Call parse() method :)
 
+
+If this doesn't suits you, just fork the file and modify it to your needs.
+
